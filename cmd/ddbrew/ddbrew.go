@@ -24,6 +24,10 @@ var CLI struct {
 		DryRun    bool   `short:"d" help:"Calculate the number of records to be written and RRUs to be consumed in the interval (sampling the first few records of input data)."`
 		Procs     int    `short:"p" help:"Specifies the number of parallel BatchWriteRequests within one interval (default runtime.NumCPUs())."`
 	} `cmd:"" help:"Restore DynamoDB table."`
+	Truncate struct {
+		TableName string `arg:"" name:"tableName" help:"Specifies table name to truncate."`
+		FilePath  string `short:"f" name:"filepath" required:"" help:"Specify the jsonline file containing the table data to be truncate"`
+	} `cmd:"" help:"Truncate DynamoDB table."`
 }
 
 func main() {
@@ -52,6 +56,11 @@ func main() {
 				FilePath:  CLI.Restore.FilePath,
 				DryRun:    CLI.Restore.DryRun,
 				Procs:     CLI.Restore.Procs,
+			})
+		case "truncate <tableName>":
+			cmdErrCh <- ddbrew.Trunate(ctx, &ddbrew.TruncateOption{
+				TableName: CLI.Truncate.TableName,
+				FilePath:  CLI.Truncate.FilePath,
 			})
 		}
 	}()

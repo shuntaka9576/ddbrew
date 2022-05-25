@@ -38,9 +38,6 @@ ddbrew backup fooTable \
 Reads the jsonl file and writes it to the table. The RRUs to be consumed can be checked with the `--dry-run(short: -d)` option. Use each option to adjust WCU/WRU.
 
 ```bash
-ddbrew restore fooTable
-
-# option(long)
 ddbrew restore fooTable \
   --filepath ./testdata/1.jsonl \
   --procs 1
@@ -49,6 +46,17 @@ ddbrew restore fooTable \
 ddbrew restore fooTable \
   -f ./testdata/1.jsonl \
   -p 1
+```
+
+### Truncate
+
+```bash
+ddbrew truncate fooTable \
+  --filepath ./testdata/1.jsonl
+
+# option(short)
+ddbrew truncate fooTable \
+  -f ./testdata/1.jsonl
 ```
 
 ## Features

@@ -19,18 +19,18 @@ func mark(i int) string {
 	return marks[i%4]
 }
 
+const LIMIT_SCAN_INTERVAL = 1 * time.Second
+
 type BackupOption struct {
-	TableName    string
-	ScanLimit    int
-	ScanInterval int
-	Output       string
-	Stdout       bool
+	TableName string
+	FilePath  string
+	Limit     *int
 }
 
 func Backup(ctx context.Context, opt *BackupOption) error {
 	filePath := fmt.Sprintf("backup_%s_%s.jsonl", opt.TableName, time.Now().Format("20060102-150405"))
-	if opt.Output != "" {
-		filePath = opt.Output
+	if opt.FilePath != "" {
+		filePath = opt.FilePath
 	}
 
 	f, err := os.Create(filePath)
@@ -45,20 +45,8 @@ func Backup(ctx context.Context, opt *BackupOption) error {
 
 	writer := io.MultiWriter(f)
 
-	if opt.Stdout {
-		writer = io.MultiWriter(os.Stdout, f)
-	}
-
-	var limit *int32 = nil
-	tmpLimit := int32(opt.ScanLimit)
-
-	if opt.ScanLimit > 0 {
-		limit = &tmpLimit
-	}
-
 	params := &dynamodb.ScanInput{
 		TableName: &opt.TableName,
-		Limit:     limit,
 	}
 
 	doneCh := make(chan struct{})
@@ -69,20 +57,17 @@ func Backup(ctx context.Context, opt *BackupOption) error {
 	go func() {
 		for {
 			scanData := <-valueCh
-			for _, v := range scanData.Items {
+			for _, item := range scanData.Items {
 				parsedJl := map[string]interface{}{}
-				_ = attributevalue.UnmarshalMap(v, &parsedJl)
+				_ = attributevalue.UnmarshalMap(item, &parsedJl)
 				jsonByte, _ := json.Marshal(parsedJl)
 
 				fmt.Fprintf(writer, string(jsonByte)+"\n")
 			}
 
-			if !opt.Stdout {
-				scanCount += int(scanData.Count)
-				notifyCount += 1
-				fmt.Printf("\rscaned records: %s %d", mark(notifyCount), scanCount)
-			}
-
+			scanCount += int(scanData.Count)
+			notifyCount += 1
+			fmt.Printf("\rscaned records: %s %d", mark(notifyCount), scanCount)
 			if len(scanData.LastEvaluatedKey) == 0 {
 				fmt.Println()
 				doneCh <- struct{}{}
@@ -91,23 +76,52 @@ func Backup(ctx context.Context, opt *BackupOption) error {
 	}()
 
 	go func() {
-		for {
-			res, err := ddbClient.Scan(ctx, params)
-			if err != nil {
-				errCh <- err
+		if opt.Limit == nil {
+			for {
+				if opt.Limit == nil {
+					res, err := DdbClient.Scan(ctx, params)
+					if err != nil {
+						errCh <- err
 
-				break
+						break
+					}
+
+					valueCh <- res
+
+					if len(res.LastEvaluatedKey) > 0 {
+						params.ExclusiveStartKey = res.LastEvaluatedKey
+					} else {
+						break
+					}
+				}
 			}
+		} else {
+			limitRU := int32(*opt.Limit)
+			params.Limit = &limitRU
 
-			valueCh <- res
+			ticker := time.NewTicker(LIMIT_SCAN_INTERVAL)
+			for {
+				select {
+				case <-ticker.C:
+					limitRU = int32(*opt.Limit)
+				default:
+					if limitRU > 0 {
+						res, err := DdbClient.Scan(ctx, params)
+						if err != nil {
+							errCh <- err
 
-			if len(res.LastEvaluatedKey) > 0 {
-				params.ExclusiveStartKey = res.LastEvaluatedKey
-			} else {
-				break
+							break
+						}
+						limitRU -= res.ScannedCount
+
+						valueCh <- res
+
+						if len(res.LastEvaluatedKey) > 0 {
+							params.ExclusiveStartKey = res.LastEvaluatedKey
+						}
+					}
+				}
 			}
-
-			time.Sleep(time.Duration(opt.ScanInterval) * time.Millisecond)
 		}
 	}()
 

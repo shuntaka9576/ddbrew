@@ -6,6 +6,7 @@ type Task interface {
 
 type Result interface {
 	Count() int
+	UnprocessedItems() []string
 	Error() error
 }
 

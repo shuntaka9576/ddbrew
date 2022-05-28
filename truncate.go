@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -19,45 +20,17 @@ import (
 
 type TruncateOption struct {
 	TableName string
-	FilePath  string
+	Reader    bufio.Reader
+	LimitUnit *int
 }
 
-func Trunate(ctx context.Context, opt *TruncateOption) error {
-	f, err := os.Open(opt.FilePath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	procs := runtime.NumCPU()
-
-	headInfo, err := head(f, DEFAULT_SAMPLING_SIZE)
-	if err != nil {
-		return err
-	}
-
-	jsonLineSize := len(headInfo.Lines) / headInfo.LineConut
-	perBatchRecordSize := BATCH_WRITE_LIMIT_PER_REQ
-	perBatchRecordSizeExp := BATCH_WRITE_CAPACITY / jsonLineSize
-
-	if perBatchRecordSizeExp < BATCH_WRITE_LIMIT_PER_REQ {
-		perBatchRecordSize = perBatchRecordSizeExp
-	}
-
+func Truncate(ctx context.Context, opt *TruncateOption) error {
 	tasks := make(chan Task)
 	results := make(chan Result)
+	writeItems := make(chan *WriteItem)
+	tableName := opt.TableName
 
-	for i := 0; i < procs; i++ {
-		go worker(i, tasks, results)
-	}
-
-	reader := bufio.NewReader(f)
-
-	var remainedCount int64
-	readLine := 0
-	inputDone := make(chan struct{})
-
-	tinfo, _ := ddbClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+	tinfo, _ := DdbClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
 		TableName: &opt.TableName,
 	})
 
@@ -66,82 +39,112 @@ func Trunate(ctx context.Context, opt *TruncateOption) error {
 		tableKeys = append(tableKeys, *keyav.AttributeName)
 	}
 
+	procs := runtime.NumCPU()
+	for i := 0; i < procs; i++ {
+		go worker(i, tasks, results)
+	}
+
+	inputDone := make(chan struct{})
+	var remainedCount int64
+	readLine, readDone := 0, false
+
+	wo := (&WriteOrchestrator{
+		Ctx:           ctx,
+		TableName:     tableName,
+		WriteItems:    writeItems,
+		Tasks:         tasks,
+		LimitUnit:     opt.LimitUnit,
+		remainedCount: &remainedCount,
+		inputDone:     inputDone,
+	})
+
 	go func() {
-		notifyTask := func(wreq []types.WriteRequest) {
-			batchReq := map[string][]types.WriteRequest{}
-			batchReq[opt.TableName] = wreq
-			input := &dynamodb.BatchWriteItemInput{
-				RequestItems: batchReq,
-			}
-
-			tasks <- &RestoreTask{
-				tableName: opt.TableName,
-				req:       input,
-				ctx:       ctx,
-			}
-			atomic.AddInt64(&remainedCount, 1)
-		}
-
-		var wreqs []types.WriteRequest
-
 		for {
-			jl, err := reader.ReadString('\n')
+			jl, err := opt.Reader.ReadString('\n')
 			if err != nil {
 				if err == io.EOF {
-					notifyTask(wreqs)
+					writeItems <- nil
+					readDone = true
 
 					break
 				}
 			}
 
-			tjl := strings.TrimSpace(jl)
-			m := make(map[string]interface{})
-			err = json.Unmarshal([]byte(tjl), &m)
+			jm := map[string]any{}
+			json.Unmarshal([]byte(strings.TrimSpace(jl)), &jm)
+			result, err := GetItemSizeByJSON(jm)
 			if err != nil {
-				fmt.Printf("json marshal err %s\n", err)
-
 				continue
 			}
 
-			attributeMap, err := attributevalue.MarshalMap(m)
+			attributeMap, err := attributevalue.MarshalMap(jm)
 			if err != nil {
-				fmt.Printf("marshal error %s\n", err)
-
 				continue
 			}
-
 			mappingTableKeyAv := map[string]types.AttributeValue{}
 			for _, key := range tableKeys {
 				mappingTableKeyAv[key] = attributeMap[key]
 			}
 
-			wreqs = append(wreqs, types.WriteRequest{
+			req := types.WriteRequest{
 				DeleteRequest: &types.DeleteRequest{
 					Key: mappingTableKeyAv,
 				},
-			})
+			}
 
-			if len(wreqs) == perBatchRecordSize-1 || err == io.EOF {
-				notifyTask(wreqs)
-
-				wreqs = nil
+			writeItems <- &WriteItem{
+				tableName: opt.TableName,
+				item:      req,
+				ru:        result.ReadUnit,
+				wu:        result.WriteUnit,
+				size:      result.Size,
 			}
 			readLine += 1
-		}
 
-		close(inputDone)
+			for wo.queueSize != nil && *wo.queueSize >= MAX_ORCHESTRATOR_QUEUE_SIZE {
+				time.Sleep(1 * time.Millisecond)
+			}
+		}
 	}()
 
-	writed := 0
-	done := false
+	go wo.Run()
+
+	writeRecordLength := 0
+	unprocessedFlag := false
+	unprocessedLength := 0
+	var unprocessedRecordFile *os.File
+
 	for {
 		select {
 		case result := <-results:
-			writed += result.Count()
-			if done {
-				fmt.Printf("\rreadLine:(done)%d, deleteLine: %d", readLine, writed)
+			writeRecordLength += result.Count()
+
+			if !unprocessedFlag {
+				if readDone {
+					fmt.Fprintf(os.Stderr, "\rdelete record: %d(%d%%)", writeRecordLength, int(float64(writeRecordLength)/float64(readLine)*100))
+				} else {
+					fmt.Fprintf(os.Stderr, "\rdelete record: %d", writeRecordLength)
+				}
 			} else {
-				fmt.Printf("\rreadLine: %d, deleteLine: %d", readLine, writed)
+				if readDone {
+					fmt.Fprintf(os.Stderr, "\rdelte record: %d(%d%%), unprocessed record: %d", writeRecordLength, int(float64(writeRecordLength)/float64(readLine)*100), unprocessedLength)
+				} else {
+					fmt.Fprintf(os.Stderr, "\rdelte record: %d, unprocessed record(%s): %d", writeRecordLength, unprocessedRecordFile.Name(), unprocessedLength)
+				}
+			}
+
+			if !unprocessedFlag && len(result.UnprocessedItems()) > 0 {
+				unprocessedFlag = true
+				filePath := fmt.Sprintf("unprocessed_record_%s_%s.jsonl", opt.TableName, time.Now().Format("20060102-150405"))
+				unprocessedRecordFile, _ = os.Create(filePath)
+				defer unprocessedRecordFile.Close()
+			}
+
+			if len(result.UnprocessedItems()) > 0 {
+				for _, record := range result.UnprocessedItems() {
+					unprocessedRecordFile.Write([]byte(record + "\n"))
+					unprocessedLength += 1
+				}
 			}
 
 			if result.Error() != nil {
@@ -150,48 +153,9 @@ func Trunate(ctx context.Context, opt *TruncateOption) error {
 				atomic.AddInt64(&remainedCount, -1)
 			}
 		case <-inputDone:
-			done = true
 			if remainedCount == 0 {
 				return nil
 			}
 		}
 	}
-}
-
-type TruncateResult struct {
-	count int
-	error error
-}
-
-func (t *TruncateResult) Error() error {
-	return t.error
-}
-
-func (t *TruncateResult) Count() int {
-	return t.count
-}
-
-type TruncateTask struct {
-	tableName string
-	req       *dynamodb.BatchWriteItemInput
-	ctx       context.Context
-}
-
-func (t *TruncateTask) Run() Result {
-	r, err := ddbClient.BatchWriteItem(t.ctx, t.req)
-	result := &RestoreResult{}
-
-	if err != nil {
-		result.error = err
-	}
-
-	if err == nil {
-		if r != nil && len(r.UnprocessedItems) > 0 {
-			result.count = len(t.req.RequestItems[t.tableName]) - len(r.UnprocessedItems)
-		} else {
-			result.count = len(t.req.RequestItems[t.tableName])
-		}
-	}
-
-	return result
 }

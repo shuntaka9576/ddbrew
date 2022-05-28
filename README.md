@@ -17,49 +17,30 @@ Retrieves the records of the table specified in the argument and saves them to a
 
 ```bash
 ddbrew backup fooTable
-# => saved default backup_fooTable_20220522-195226.jsonl
-
-# option(long)
-ddbrew backup fooTable \
-  --scan-limit-internal 1000 \
-  --scan-limit 1  \
-  --output ./testdata/1.jsonl \
-  --stdout
-
-# option(short)
-ddbrew backup fooTable \
-  -i 1000  \
-  -l 1 \
-  -o ./testdata/1.jsonl \
-  -s
 ```
 
 ### Restore
-Reads the jsonl file and writes it to the table. The RRUs to be consumed can be checked with the `--dry-run(short: -d)` option. Use each option to adjust WCU/WRU.
+Reads the jsonl file and writes it to the table. The RRUs to be consumed can be checked with the `--dry-run` option. To limit the number of writes, use the `--limit` option
 
 ```bash
 ddbrew restore fooTable \
-  --filepath ./testdata/1.jsonl \
-  --procs 1
-
-# option(short)
-ddbrew restore fooTable \
-  -f ./testdata/1.jsonl \
-  -p 1
+  --file ./testdata/1.jsonl
 ```
 
 ### Truncate
+Read jsonl file and delete table data. Note that the deletion also consumes RUC/RRU.
 
 ```bash
 ddbrew truncate fooTable \
-  --filepath ./testdata/1.jsonl
-
-# option(short)
-ddbrew truncate fooTable \
-  -f ./testdata/1.jsonl
+  --file ./testdata/1.jsonl
 ```
 
-## Features
-* [ ] Controlling the number of writes
-* [ ] Visualization of writing status
-* [ ] Delivery with brew tap
+### Use DynamoDB Local
+
+If you use DynamoDB Local, please use the `--local` option
+```bash
+ddbrew restore fooTable \
+  --file testdata/1.jsonl \
+  --local http://localhost:8000
+```
+

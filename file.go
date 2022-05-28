@@ -21,10 +21,10 @@ func head(f *os.File, n int) (*HeadResult, error) {
 	}
 	size := int(info.Size())
 
-	var readLinePos int = 0
-	var readPos int = 0
+	readLinePos := 0
+	readPos := 0
+	bufferLineNumber := 0
 	var headLinesBuffer []byte
-	var bufferLineNumber int = 0
 
 	for readLinePos <= n {
 		var buf []byte

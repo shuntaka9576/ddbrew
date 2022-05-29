@@ -27,3 +27,19 @@ changelog:
     exclude:
       - '^docs:'
       - '^test:'
+brews:
+  -
+    name: ddbrew
+    github:
+      owner: shuntaka9576
+      name: homebrew-tap
+    url_template: "https://github.com/shuntaka9576/ddbrew/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    commit_author:
+      name: goreleaserbot
+      email: goreleaser@carlosbecker.com
+    homepage: "https://blog.hozi.dev/"
+    description: "Simple DynamoDB utility"
+    test: |
+      system "#{bin}/ddbrew --help"
+    install: |
+      bin.install "ddbrew"

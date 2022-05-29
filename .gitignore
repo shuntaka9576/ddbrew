@@ -1,6 +1,6 @@
 *.jsonl
 !testdata/*.jsonl
-.docker
-ddbrew
+.docker/
+/ddbrew
 
 dist/

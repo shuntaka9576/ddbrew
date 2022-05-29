@@ -7,6 +7,11 @@ Simple DynamoDB utility🍺.
 ## Installation
 
 ```bash
+brew tap shuntaka9576/tap
+brew install shuntaka9576/tap/ddbrew
+```
+
+```bash
 go install github.com/shuntaka9576/ddbrew/cmd/ddbrew@latest
 ```
 

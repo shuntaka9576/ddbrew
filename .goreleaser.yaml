@@ -29,15 +29,16 @@ changelog:
       - '^test:'
 brews:
   -
-    name: ddbrew
-    github:
+    tap:
       owner: shuntaka9576
       name: homebrew-tap
+      token: "{{ .Env.GITHUB_TOKEN }}"
     url_template: "https://github.com/shuntaka9576/ddbrew/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     commit_author:
       name: goreleaserbot
-      email: goreleaser@carlosbecker.com
+      email: bot@goreleaser.com
     homepage: "https://blog.hozi.dev/"
+    folder: Formula
     description: "Simple DynamoDB utility"
     test: |
       system "#{bin}/ddbrew --help"

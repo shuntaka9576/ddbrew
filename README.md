@@ -27,11 +27,11 @@ ddbrew restore fooTable \
   --file ./testdata/1.jsonl
 ```
 
-### Truncate
+### Delete
 Read jsonl file and delete table data. Note that the deletion also consumes RUC/RRU.
 
 ```bash
-ddbrew truncate fooTable \
+ddbrew delete fooTable \
   --file ./testdata/1.jsonl
 ```
 

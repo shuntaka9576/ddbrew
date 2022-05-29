@@ -5,6 +5,5 @@ import (
 )
 
 var (
-	ErrorOptInputError = errors.New("ErrorOptInputError")
 	ErrorDescribeTable = errors.New("ErrorDescribeTable")
 )

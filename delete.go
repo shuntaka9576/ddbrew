@@ -18,13 +18,13 @@ import (
 	"github.com/pkg/errors"
 )
 
-type TruncateOption struct {
+type DeleteOption struct {
 	TableName string
 	File      *os.File
 	LimitUnit *int
 }
 
-func Truncate(ctx context.Context, opt *TruncateOption) error {
+func Delete(ctx context.Context, opt *DeleteOption) error {
 	tasks := make(chan Task)
 	results := make(chan Result)
 	writeItems := make(chan *WriteItem)
@@ -49,7 +49,7 @@ func Truncate(ctx context.Context, opt *TruncateOption) error {
 
 	wo := (&WriteOrchestrator{
 		Ctx:           ctx,
-		TaskType:      TASK_TYPE_TRUNCATE,
+		TaskType:      TASK_TYPE_DELETE,
 		TableName:     tableName,
 		WriteItems:    writeItems,
 		Tasks:         tasks,

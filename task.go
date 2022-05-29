@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	TASK_TYPE_RESTORE  = "TASK_NAME_RESTORE"
-	TASK_TYPE_TRUNCATE = "TASK_TYPE_TRUNCATE"
+	TASK_TYPE_RESTORE = "TASK_NAME_RESTORE"
+	TASK_TYPE_DELETE  = "TASK_TYPE_DELETE"
 )
 
 type Result struct {
@@ -53,7 +53,7 @@ func (t *Task) Run() Result {
 
 				if t.taskType == TASK_TYPE_RESTORE {
 					err = attributevalue.UnmarshalMap(item.PutRequest.Item, &parsedJl)
-				} else if t.taskType == TASK_TYPE_TRUNCATE {
+				} else if t.taskType == TASK_TYPE_DELETE {
 					err = attributevalue.UnmarshalMap(item.DeleteRequest.Key, &parsedJl)
 				}
 				if err != nil {

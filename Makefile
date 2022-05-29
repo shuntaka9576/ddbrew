@@ -1,15 +1,8 @@
-lint:
-	staticcheck ./...
-
-clean:
-	-rm ddbrew
+BIN := ddbrew
+VERSION := $(shell git describe --tags)
+REVISION := $(shell git rev-parse --short HEAD)
 
 build:
-	go build ./cmd/ddbrew/ddbrew.go
+	go build -ldflags="-s -w -X github.com/shuntaka9576/$(BIN)/cli.Version=$(VERSION) -X github.com/shuntaka9576/$(BIN)/cli.Revision=$(REVISION)" -o ddbrew ./cmd/$(BIN)
 
-test:
-	go test
-
-all: lint test
-
-.PHONY: lint build clean test all
+.PHONY: build

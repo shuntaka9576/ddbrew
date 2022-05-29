@@ -17,23 +17,9 @@ type RestoreOption struct {
 	Limit     int
 }
 
-func (c *RestoreOption) validate() error {
-	if c.FilePath == "" {
-		return ErrorOptInputError
-	}
-
-	return nil
-}
-
 func Restore(ctx context.Context, opt *RestoreOption) error {
-	err := opt.validate()
-	if err != nil {
-		return err
-	}
-
 	var f *os.File
-	f, err = os.Open(opt.FilePath)
-
+	f, err := os.Open(opt.FilePath)
 	if err != nil {
 		return err
 	}

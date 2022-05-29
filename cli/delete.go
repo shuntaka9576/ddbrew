@@ -10,33 +10,18 @@ import (
 	"github.com/shuntaka9576/ddbrew"
 )
 
-type TruncateOption struct {
+type DeleteOption struct {
 	TableName string
 	FilePath  string
 	DryRun    bool
 	Limit     int
 }
 
-func (c *TruncateOption) validate() error {
-	if c.FilePath == "" {
-		return ErrorOptInputError
-	}
-
-	return nil
-}
-
-func Truncate(ctx context.Context, opt *TruncateOption) error {
-	err := opt.validate()
-	if err != nil {
-		return err
-	}
-
+func Delete(ctx context.Context, opt *DeleteOption) error {
 	var f *os.File
-	f, err = os.Open(opt.FilePath)
-
+	f, err := os.Open(opt.FilePath)
 	if err != nil {
 		return err
-
 	}
 
 	tinfo, err := ddbrew.DdbClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
@@ -70,7 +55,7 @@ func Truncate(ctx context.Context, opt *TruncateOption) error {
 		limitUnit = &opt.Limit
 	}
 
-	err = ddbrew.Truncate(ctx, &ddbrew.TruncateOption{
+	err = ddbrew.Delete(ctx, &ddbrew.DeleteOption{
 		TableName: opt.TableName,
 		File:      f,
 		LimitUnit: limitUnit,

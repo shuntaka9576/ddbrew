@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -28,7 +30,12 @@ type BackupOption struct {
 }
 
 func Backup(ctx context.Context, opt *BackupOption) error {
-	filePath := fmt.Sprintf("backup_%s_%s.jsonl", opt.TableName, time.Now().Format("20060102-150405"))
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	filePath := path.Join(wd, fmt.Sprintf("backup_%s_%s.jsonl", opt.TableName, time.Now().Format("20060102-150405")))
 	if opt.FilePath != "" {
 		filePath = opt.FilePath
 	}
@@ -59,8 +66,15 @@ func Backup(ctx context.Context, opt *BackupOption) error {
 			scanData := <-valueCh
 			for _, item := range scanData.Items {
 				parsedJl := map[string]interface{}{}
-				_ = attributevalue.UnmarshalMap(item, &parsedJl)
-				jsonByte, _ := json.Marshal(parsedJl)
+				err := attributevalue.UnmarshalMap(item, &parsedJl)
+				if err != nil {
+					continue
+				}
+
+				jsonByte, err := json.Marshal(parsedJl)
+				if err != nil {
+					continue
+				}
 
 				fmt.Fprintf(writer, string(jsonByte)+"\n")
 			}
@@ -132,6 +146,10 @@ func Backup(ctx context.Context, opt *BackupOption) error {
 
 			return nil
 		case err := <-errCh:
+			if scanCount == 0 {
+				fmt.Printf("scanned record is 0, the file is deleted: %s\n", filepath.Base(f.Name()))
+				os.Remove(filePath)
+			}
 
 			return errors.Wrap(err, "backup error")
 		}

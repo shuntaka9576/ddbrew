@@ -24,6 +24,7 @@ type WriteItem struct {
 
 type WriteOrchestrator struct {
 	Ctx           context.Context
+	TaskType      string
 	TableName     string
 	WriteItems    <-chan *WriteItem
 	Tasks         chan<- Task
@@ -61,8 +62,9 @@ func (w *WriteOrchestrator) Run() {
 							RequestItems: requestItems,
 						}
 
-						w.Tasks <- &RestoreTask{
+						w.Tasks <- Task{
 							tableName: w.TableName,
+							taskType:  w.TaskType,
 							req:       req,
 							ctx:       w.Ctx,
 						}
@@ -78,7 +80,7 @@ func (w *WriteOrchestrator) Run() {
 					req := &dynamodb.BatchWriteItemInput{
 						RequestItems: requestItems,
 					}
-					w.Tasks <- &RestoreTask{
+					w.Tasks <- Task{
 						tableName: w.TableName,
 						req:       req,
 						ctx:       w.Ctx,
@@ -128,7 +130,7 @@ func (w *WriteOrchestrator) Run() {
 					req := &dynamodb.BatchWriteItemInput{
 						RequestItems: requestItems,
 					}
-					w.Tasks <- &RestoreTask{
+					w.Tasks <- Task{
 						tableName: w.TableName,
 						req:       req,
 						ctx:       w.Ctx,

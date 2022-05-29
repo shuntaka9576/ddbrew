@@ -49,6 +49,7 @@ func Truncate(ctx context.Context, opt *TruncateOption) error {
 
 	wo := (&WriteOrchestrator{
 		Ctx:           ctx,
+		TaskType:      TASK_TYPE_TRUNCATE,
 		TableName:     tableName,
 		WriteItems:    writeItems,
 		Tasks:         tasks,

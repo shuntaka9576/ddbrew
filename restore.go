@@ -47,6 +47,7 @@ func Restore(ctx context.Context, opt *RestoreOption) error {
 
 	wo := &WriteOrchestrator{
 		Ctx:           ctx,
+		TaskType:      TASK_TYPE_RESTORE,
 		TableName:     tableName,
 		WriteItems:    writeItems,
 		Tasks:         tasks,

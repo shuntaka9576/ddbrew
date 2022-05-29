@@ -8,33 +8,39 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
-type RestoreResult struct {
+const (
+	TASK_TYPE_RESTORE  = "TASK_NAME_RESTORE"
+	TASK_TYPE_TRUNCATE = "TASK_TYPE_TRUNCATE"
+)
+
+type Result struct {
 	count            int
 	unprocessedItems []string
 	error            error
 }
 
-func (t *RestoreResult) Error() error {
+func (t *Result) Error() error {
 	return t.error
 }
 
-func (t *RestoreResult) Count() int {
+func (t *Result) Count() int {
 	return t.count
 }
 
-func (t *RestoreResult) UnprocessedItems() []string {
+func (t *Result) UnprocessedItems() []string {
 	return t.unprocessedItems
 }
 
-type RestoreTask struct {
+type Task struct {
+	taskType  string
 	tableName string
 	req       *dynamodb.BatchWriteItemInput
 	ctx       context.Context
 }
 
-func (t *RestoreTask) Run() Result {
+func (t *Task) Run() Result {
 	r, err := DdbClient.BatchWriteItem(t.ctx, t.req)
-	result := &RestoreResult{}
+	result := Result{}
 
 	if err != nil {
 		result.error = err
@@ -44,8 +50,20 @@ func (t *RestoreTask) Run() Result {
 		if r != nil && len(r.UnprocessedItems[t.tableName]) > 0 {
 			for _, item := range r.UnprocessedItems[t.tableName] {
 				parsedJl := map[string]interface{}{}
-				_ = attributevalue.UnmarshalMap(item.PutRequest.Item, &parsedJl)
-				jsonByte, _ := json.Marshal(parsedJl)
+
+				if t.taskType == TASK_TYPE_RESTORE {
+					err = attributevalue.UnmarshalMap(item.PutRequest.Item, &parsedJl)
+				} else if t.taskType == TASK_TYPE_TRUNCATE {
+					err = attributevalue.UnmarshalMap(item.DeleteRequest.Key, &parsedJl)
+				}
+				if err != nil {
+					result.error = err
+				}
+
+				jsonByte, err := json.Marshal(parsedJl)
+				if err != nil {
+					result.error = err
+				}
 				result.unprocessedItems = append(result.unprocessedItems, string(jsonByte))
 			}
 		}

@@ -1,15 +1,17 @@
-*🚧 Work in progress. Not stable. 🚧*
-
 # ddbrew
 
 Simple DynamoDB utility🍺.
 
 ## Installation
 
+### Homebrew
+
 ```bash
 brew tap shuntaka9576/tap
 brew install shuntaka9576/tap/ddbrew
 ```
+
+### Build from source
 
 ```bash
 go install github.com/shuntaka9576/ddbrew/cmd/ddbrew@latest

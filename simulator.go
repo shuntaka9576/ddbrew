@@ -20,7 +20,7 @@ const (
 )
 
 type SimulateOpt struct {
-	Reader *bufio.Reader
+	Reader io.Reader
 	Mode   DDBMode
 }
 
@@ -33,7 +33,7 @@ type SimulateResult struct {
 }
 
 func Simulate(opt *SimulateOpt) (*SimulateResult, error) {
-	reader := opt.Reader
+	reader := bufio.NewReader(opt.Reader)
 
 	var totalItemSize float64
 	rusum, wusum := 0, 0

@@ -25,7 +25,7 @@ const (
 
 type RestoreOption struct {
 	TableName string
-	Reader    bufio.Reader
+	File      *os.File
 	LimitUnit *int
 }
 
@@ -42,7 +42,6 @@ func Restore(ctx context.Context, opt *RestoreOption) error {
 
 	inputDone := make(chan struct{})
 	var remainedCount int64
-	readLine, readDone := 0, false
 
 	type WriteRequestPerSec = [][]types.WriteRequest
 
@@ -56,15 +55,16 @@ func Restore(ctx context.Context, opt *RestoreOption) error {
 		inputDone:     inputDone,
 	}
 
-	go wo.Run()
+	readLine := countLines(opt.File)
+	opt.File.Seek(0, 0)
+	reader := bufio.NewReader(opt.File)
 
 	go func() {
 		for {
-			jl, err := opt.Reader.ReadString('\n')
+			jl, err := reader.ReadString('\n')
 			if err != nil {
 				if err == io.EOF {
 					writeItems <- nil
-					readDone = true
 
 					break
 				}
@@ -94,13 +94,14 @@ func Restore(ctx context.Context, opt *RestoreOption) error {
 				wu:        result.WriteUnit,
 				size:      result.Size,
 			}
-			readLine += 1
 
 			for wo.queueSize != nil && *wo.queueSize >= MAX_ORCHESTRATOR_QUEUE_SIZE {
 				time.Sleep(1 * time.Millisecond)
 			}
 		}
 	}()
+
+	go wo.Run()
 
 	writeRecordLength := 0
 	unprocessedFlag := false
@@ -113,17 +114,9 @@ func Restore(ctx context.Context, opt *RestoreOption) error {
 			writeRecordLength += result.Count()
 
 			if !unprocessedFlag {
-				if readDone {
-					fmt.Fprintf(os.Stderr, "\rwrite record: %d(%d%%)", writeRecordLength, int(float64(writeRecordLength)/float64(readLine)*100))
-				} else {
-					fmt.Fprintf(os.Stderr, "\rwrite record: %d", writeRecordLength)
-				}
+				fmt.Fprintf(os.Stderr, "\rwrite record: %d(%d%%)", writeRecordLength, int(float64(writeRecordLength)/float64(readLine)*100))
 			} else {
-				if readDone {
-					fmt.Fprintf(os.Stderr, "\rwrite record: %d(%d%%), unprocessed record: %d", writeRecordLength, int(float64(writeRecordLength)/float64(readLine)*100), unprocessedLength)
-				} else {
-					fmt.Fprintf(os.Stderr, "\rwrite record: %d, unprocessed record(%s): %d", writeRecordLength, unprocessedRecordFile.Name(), unprocessedLength)
-				}
+				fmt.Fprintf(os.Stderr, "\rwrite record: %d(%d%%), unprocessed record(%s): %d", writeRecordLength, int(float64(writeRecordLength)/float64(readLine)*100), unprocessedRecordFile.Name(), unprocessedLength)
 			}
 
 			if !unprocessedFlag && len(result.UnprocessedItems()) > 0 {

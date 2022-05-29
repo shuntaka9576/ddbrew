@@ -1,12 +1,9 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"os"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/pkg/errors"
@@ -18,11 +15,10 @@ type RestoreOption struct {
 	FilePath  string
 	DryRun    bool
 	Limit     int
-	Stdin     string
 }
 
 func (c *RestoreOption) validate() error {
-	if c.FilePath == "" && c.Stdin == "" || c.FilePath != "" && c.Stdin != "" {
+	if c.FilePath == "" {
 		return ErrorOptInputError
 	}
 
@@ -36,12 +32,10 @@ func Restore(ctx context.Context, opt *RestoreOption) error {
 	}
 
 	var f *os.File
-	var re io.Reader
-	if opt.FilePath != "" {
-		f, _ = os.Open(opt.FilePath)
-		re = f
-	} else if opt.Stdin != "" {
-		re = strings.NewReader(opt.Stdin)
+	f, err = os.Open(opt.FilePath)
+
+	if err != nil {
+		return err
 	}
 
 	tinfo, err := ddbrew.DdbClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
@@ -53,9 +47,8 @@ func Restore(ctx context.Context, opt *RestoreOption) error {
 
 	mode := ddbrew.GetDDBMode(tinfo)
 
-	reader := bufio.NewReader(re)
 	if opt.DryRun {
-		result, err := ddbrew.Simulate(&ddbrew.SimulateOpt{Reader: reader, Mode: *mode})
+		result, err := ddbrew.Simulate(&ddbrew.SimulateOpt{Reader: f, Mode: *mode})
 		if err != nil {
 			return err
 		}
@@ -78,7 +71,7 @@ func Restore(ctx context.Context, opt *RestoreOption) error {
 
 	err = ddbrew.Restore(ctx, &ddbrew.RestoreOption{
 		TableName: opt.TableName,
-		Reader:    *reader,
+		File:      f,
 		LimitUnit: limitUnit,
 	})
 

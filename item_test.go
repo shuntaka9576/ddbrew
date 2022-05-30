@@ -26,7 +26,7 @@ func TestGetDDBBytesByJson(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		var pjson map[string]any
+		var pjson map[string]interface{}
 		json.Unmarshal(test.input.bytes, &pjson)
 
 		got, err := GetItemSizeByJSON(pjson)
@@ -54,7 +54,7 @@ func TestGetDDBBytesByJson_LargeData(t *testing.T) {
 	for _, test := range tests {
 		bytes, _ := ioutil.ReadFile(test.input.filepath)
 
-		var pjson map[string]any
+		var pjson map[string]interface{}
 		json.Unmarshal(bytes, &pjson)
 
 		got, err := GetItemSizeByJSON(pjson)

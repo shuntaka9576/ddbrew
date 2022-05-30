@@ -74,7 +74,7 @@ func Delete(ctx context.Context, opt *DeleteOption) error {
 				}
 			}
 
-			jm := map[string]any{}
+			jm := map[string]interface{}{}
 			json.Unmarshal([]byte(strings.TrimSpace(jl)), &jm)
 			result, err := GetItemSizeByJSON(jm)
 			if err != nil {

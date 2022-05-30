@@ -74,6 +74,6 @@ func TestSimulate(t *testing.T) {
 	}
 }
 
-func ptr[T any](v T) *T {
+func ptr(v int) *int {
 	return &v
 }

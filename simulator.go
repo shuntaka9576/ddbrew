@@ -46,7 +46,7 @@ func Simulate(opt *SimulateOpt) (*SimulateResult, error) {
 		}
 		tl := strings.TrimSpace(l)
 
-		var pjl map[string]any
+		var pjl map[string]interface{}
 		err = json.Unmarshal([]byte(tl), &pjl)
 
 		if err != nil {

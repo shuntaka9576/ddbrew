@@ -43,7 +43,7 @@ func getWuSize(size int) int {
 	return itemWriteSizeRoundUp(size) / WU_UNIT
 }
 
-func GetItemSizeByJSON(json map[string]any) (*ItemResult, error) {
+func GetItemSizeByJSON(json map[string]interface{}) (*ItemResult, error) {
 	size, err := getItemSizeByJSON(json)
 	if err != nil {
 		return nil, err
@@ -58,11 +58,11 @@ func GetItemSizeByJSON(json map[string]any) (*ItemResult, error) {
 	}, nil
 }
 
-func getItemSizeByJSON(json any) (int, error) {
+func getItemSizeByJSON(json interface{}) (int, error) {
 	var sum int
 
 	switch vt := json.(type) {
-	case map[string]any:
+	case map[string]interface{}:
 		for k, v := range vt {
 			glen, err := getItemSizeByJSON(v)
 			if err != nil {

@@ -1,0 +1,29 @@
+name: "test"
+on: ["push", "pull_request"]
+
+jobs:
+  go-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.versions.outputs.value }}
+    steps:
+      - id: versions
+        run: |
+          versions=$(curl -s 'https://go.dev/dl/?mode=json' | jq -c 'map(.version[2:])')
+          echo "::set-output name=value::${versions}"
+  ci:
+    name: "Run CI"
+    needs: go-versions
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ${{fromJson(needs.go-versions.outputs.versions)}}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 1
+    - uses: WillAbides/setup-go-faster@v1.7.0
+      with:
+        go-version: ${{ matrix.go-version }}
+    - run: "go test ./..."

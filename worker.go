@@ -1,9 +1,16 @@
 package ddbrew
 
-func worker(id int, tasks <-chan Task, results chan<- Result) {
-	for t := range tasks {
-		result := t.Run()
+import (
+	"context"
+)
 
-		results <- result
+func worker(reqs <-chan BatchRequest, results chan<- *BatchResult) {
+	for req := range reqs {
+		res, err := DdbClient.BatchWrite(context.TODO(), req)
+
+		results <- &BatchResult{
+			Content: res,
+			Error:   err,
+		}
 	}
 }

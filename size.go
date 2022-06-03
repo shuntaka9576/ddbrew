@@ -1,25 +1,99 @@
 package ddbrew
 
 import (
-	"fmt"
+	"errors"
+	"strconv"
 )
 
-const KB_UNIT = 1000
-const MB_UNIT = 1000000
-const GB_UNIT = 1000000000
+const (
+	WU_UNIT = 1000 // 1KB
+	RU_UNIT = 4000 // 4KB
+)
 
-func PrittyPrintBytes(size int) *string {
-	var bytestring string
-	bytestring = fmt.Sprintf("%.2f B", float64(size))
+type ItemResult struct {
+	Size      int
+	ReadUnit  int
+	WriteUnit int
+}
 
-	if size >= KB_UNIT && size < MB_UNIT {
-		bytestring = fmt.Sprintf("%.2f KB", float64(size)/KB_UNIT)
-	} else if size >= MB_UNIT && size < GB_UNIT {
-		bytestring = fmt.Sprintf("%.2f MB", float64(size)/MB_UNIT)
+func itemSizeRoundUp(size int, unitSize int) int {
+	remainder := size % unitSize
+	quotient := size / unitSize
 
-	} else if size >= GB_UNIT {
-		bytestring = fmt.Sprintf("%.2f GB", float64(size)/GB_UNIT)
+	if remainder > 0 {
+		return (quotient + 1) * unitSize
+	} else {
+		return quotient * unitSize
+	}
+}
+
+func itemReadSizeRoundUp(size int) int {
+	return itemSizeRoundUp(size, RU_UNIT)
+}
+
+func itemWriteSizeRoundUp(size int) int {
+	return itemSizeRoundUp(size, WU_UNIT)
+}
+
+func getRuSize(size int) int {
+	return itemReadSizeRoundUp(size) / RU_UNIT
+}
+
+func getWuSize(size int) int {
+	return itemWriteSizeRoundUp(size) / WU_UNIT
+}
+
+func GetItemSizeByJSON(json map[string]interface{}) (*ItemResult, error) {
+	size, err := getItemSizeByJSON(json)
+	if err != nil {
+		return nil, err
+	}
+	ru := getRuSize(size)
+	wu := getWuSize(size)
+
+	return &ItemResult{
+		Size:      size,
+		ReadUnit:  ru,
+		WriteUnit: wu,
+	}, nil
+}
+
+func getItemSizeByJSON(json interface{}) (int, error) {
+	var sum int
+
+	switch vt := json.(type) {
+	case map[string]interface{}:
+		for k, v := range vt {
+			glen, err := getItemSizeByJSON(v)
+			if err != nil {
+				return 0, nil
+			}
+			sum += glen
+			sum += len(k)
+		}
+	case string:
+		l := len(vt)
+		return l, nil
+	case float64:
+		l := len(strconv.FormatFloat(vt, 'f', -1, 64))
+		return l, nil
+	case bool:
+		l := 1
+		return l, nil
+	case nil:
+		l := 1
+		return l, nil
+	case []interface{}:
+		for _, v := range vt {
+			glen, err := getItemSizeByJSON(v)
+			if err != nil {
+				return 0, err
+			}
+			sum += glen
+		}
+	default:
+		return 0, errors.New("unexpected type error")
 	}
 
-	return &bytestring
+	return sum, nil
 }

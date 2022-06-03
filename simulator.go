@@ -8,13 +8,6 @@ import (
 	"strings"
 )
 
-type DDBMode = string
-
-var (
-	OnDemand    = DDBMode("OnDemand")
-	Provisioned = DDBMode("Provisioned")
-)
-
 const (
 	ITEM_SIZE_LIMIT = 400000 // 400KB
 )

@@ -1,99 +1,45 @@
 package ddbrew
 
 import (
-	"errors"
-	"strconv"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-const (
-	WU_UNIT = 1000 // 1KB
-	RU_UNIT = 4000 // 4KB
-)
-
-type ItemResult struct {
-	Size      int
-	ReadUnit  int
-	WriteUnit int
+type DDBItem struct {
+	Action         DDBAction
+	AttributeValue map[string]types.AttributeValue
+	Keys           []string
+	Unit           int
+	ByteSize       int
 }
 
-func itemSizeRoundUp(size int, unitSize int) int {
-	remainder := size % unitSize
-	quotient := size / unitSize
-
-	if remainder > 0 {
-		return (quotient + 1) * unitSize
-	} else {
-		return quotient * unitSize
-	}
-}
-
-func itemReadSizeRoundUp(size int) int {
-	return itemSizeRoundUp(size, RU_UNIT)
-}
-
-func itemWriteSizeRoundUp(size int) int {
-	return itemSizeRoundUp(size, WU_UNIT)
-}
-
-func getRuSize(size int) int {
-	return itemReadSizeRoundUp(size) / RU_UNIT
-}
-
-func getWuSize(size int) int {
-	return itemWriteSizeRoundUp(size) / WU_UNIT
-}
-
-func GetItemSizeByJSON(json map[string]interface{}) (*ItemResult, error) {
-	size, err := getItemSizeByJSON(json)
-	if err != nil {
-		return nil, err
-	}
-	ru := getRuSize(size)
-	wu := getWuSize(size)
-
-	return &ItemResult{
-		Size:      size,
-		ReadUnit:  ru,
-		WriteUnit: wu,
-	}, nil
-}
-
-func getItemSizeByJSON(json interface{}) (int, error) {
-	var sum int
-
-	switch vt := json.(type) {
-	case map[string]interface{}:
-		for k, v := range vt {
-			glen, err := getItemSizeByJSON(v)
-			if err != nil {
-				return 0, nil
-			}
-			sum += glen
-			sum += len(k)
-		}
-	case string:
-		l := len(vt)
-		return l, nil
-	case float64:
-		l := len(strconv.FormatFloat(vt, 'f', -1, 64))
-		return l, nil
-	case bool:
-		l := 1
-		return l, nil
-	case nil:
-		l := 1
-		return l, nil
-	case []interface{}:
-		for _, v := range vt {
-			glen, err := getItemSizeByJSON(v)
-			if err != nil {
-				return 0, err
-			}
-			sum += glen
-		}
+func (d *DDBItem) WriteReuest() types.WriteRequest {
+	switch d.Action {
+	case DDB_ACTION_DELETE:
+		return d.DeleteRequest()
+	case DDB_ACTION_PUT:
+		return d.PutRequest()
 	default:
-		return 0, errors.New("unexpected type error")
+		panic("invalid")
+	}
+}
+
+func (d *DDBItem) PutRequest() types.WriteRequest {
+	return types.WriteRequest{
+		PutRequest: &types.PutRequest{
+			Item: d.AttributeValue,
+		},
+	}
+}
+
+func (d *DDBItem) DeleteRequest() types.WriteRequest {
+	mappingTableKeyAv := map[string]types.AttributeValue{}
+	for _, key := range d.Keys {
+		mappingTableKeyAv[key] = d.AttributeValue[key]
 	}
 
-	return sum, nil
+	return types.WriteRequest{
+		DeleteRequest: &types.DeleteRequest{
+			Key: mappingTableKeyAv,
+		},
+	}
 }

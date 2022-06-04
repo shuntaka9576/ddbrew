@@ -4,9 +4,9 @@ import (
 	"context"
 )
 
-func worker(reqs <-chan BatchRequest, results chan<- *BatchResult) {
+func worker(ctx context.Context, reqs <-chan BatchRequest, results chan<- *BatchResult) {
 	for req := range reqs {
-		res, err := DdbClient.BatchWrite(context.TODO(), req)
+		res, err := DdbClient.BatchWrite(ctx, req)
 
 		results <- &BatchResult{
 			Content: res,

@@ -60,18 +60,20 @@ func main() {
 				Limit:     CLI.Backup.Limit,
 			})
 		case "restore <tableName>":
-			cmdErrCh <- cli.Restore(ctx, &cli.RestoreOption{
+			cmdErrCh <- cli.Write(ctx, &cli.WriteOption{
 				TableName: CLI.Restore.TableName,
 				FilePath:  CLI.Restore.File,
 				DryRun:    CLI.Restore.DryRun,
 				Limit:     CLI.Restore.Limit,
+				Action:    ddbrew.DDB_ACTION_PUT,
 			})
 		case "delete <tableName>":
-			cmdErrCh <- cli.Delete(ctx, &cli.DeleteOption{
+			cmdErrCh <- cli.Write(ctx, &cli.WriteOption{
 				TableName: CLI.Delete.TableName,
 				FilePath:  CLI.Delete.File,
 				DryRun:    CLI.Delete.DryRun,
 				Limit:     CLI.Delete.Limit,
+				Action:    ddbrew.DDB_ACTION_DELETE,
 			})
 		}
 	}()

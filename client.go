@@ -65,44 +65,42 @@ type BatchWriteOutput struct {
 	UnprocessedRecord []string
 }
 
-func (d *DDBClient) BatchWrite(ctx context.Context, req BatchRequest) (*BatchWriteOutput, error) {
+func (d *DDBClient) BatchWrite(ctx context.Context, req BatchRequest) (output BatchWriteOutput, err error) {
 	res, err := d.BatchWriteItem(ctx, req.BatchWriteItemInput())
 
 	if err != nil {
-		return nil, err
+		return output, err
 	}
 
-	result := &BatchWriteOutput{}
-	if err == nil {
-		if res != nil && len(res.UnprocessedItems[req.TableName]) > 0 {
-			for _, item := range res.UnprocessedItems[req.TableName] {
-				parsedJl := map[string]interface{}{}
+	if len(res.UnprocessedItems[req.TableName]) > 0 {
+		for _, item := range res.UnprocessedItems[req.TableName] {
+			parsedJl := map[string]interface{}{}
 
-				if item.PutRequest != nil {
-					err = attributevalue.UnmarshalMap(item.PutRequest.Item, &parsedJl)
-					if err != nil {
-						continue
-					}
-
-				}
-
-				if item.DeleteRequest != nil {
-					err = attributevalue.UnmarshalMap(item.DeleteRequest.Key, &parsedJl)
-					if err != nil {
-						continue
-					}
-				}
-
-				jsonByte, err := json.Marshal(parsedJl)
+			if item.PutRequest != nil {
+				err = attributevalue.UnmarshalMap(item.PutRequest.Item, &parsedJl)
 				if err != nil {
-					return nil, err
+					continue
 				}
 
-				result.UnprocessedRecord = append(result.UnprocessedRecord, string(jsonByte))
 			}
+
+			if item.DeleteRequest != nil {
+				err = attributevalue.UnmarshalMap(item.DeleteRequest.Key, &parsedJl)
+				if err != nil {
+					continue
+				}
+			}
+
+			jsonByte, err := json.Marshal(parsedJl)
+			if err != nil {
+				return output, err
+			}
+
+			output.UnprocessedRecord = append(output.UnprocessedRecord, string(jsonByte))
 		}
 	}
-	result.SuccessCount = req.Number() - len(result.UnprocessedRecord)
 
-	return result, nil
+	output.SuccessCount = req.Number() - len(output.UnprocessedRecord)
+
+	return output, nil
 }

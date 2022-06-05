@@ -1,3 +1,5 @@
+[![test](https://github.com/shuntaka9576/ddbrew/actions/workflows/test.yml/badge.svg)](https://github.com/shuntaka9576/ddbrew/actions/workflows/test.yml)
+
 # ddbrew
 
 Simple DynamoDB utility🍺.

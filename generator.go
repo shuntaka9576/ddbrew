@@ -21,14 +21,22 @@ type BatchRequestGenerator struct {
 	unit   int
 	pos    int
 	table  *Table
+	endpos int
 }
 
-func (b *BatchRequestGenerator) Init(opt *BatchRequestGeneratorOption) *BatchRequestGenerator {
+func (b *BatchRequestGenerator) Init(opt *BatchRequestGeneratorOption) (*BatchRequestGenerator, error) {
 	b.file = opt.File
 	b.action = opt.Action
 	b.table = opt.Table
 
-	return b
+	info, err := b.file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	b.endpos = int(info.Size())
+
+	return b, nil
 }
 
 const (
@@ -48,18 +56,12 @@ func (b *BatchRequestGenerator) generate(unit int) (BatchRequest, error) {
 		TableName: b.table.Name,
 	}
 
-	info, err := b.file.Stat()
-	if err != nil {
-		return req, err
-	}
-	endpos := int(info.Size())
-
 	for {
 		var readSize int
-		if endpos-b.pos-READ_BUF_SIZE >= 0 {
+		if b.endpos-b.pos-READ_BUF_SIZE >= 0 {
 			readSize = READ_BUF_SIZE
 		} else {
-			readSize = endpos - b.pos
+			readSize = b.endpos - b.pos
 		}
 
 		if readSize == 0 {
@@ -121,7 +123,7 @@ func (b *BatchRequestGenerator) generate(unit int) (BatchRequest, error) {
 			return req, err
 		}
 
-		if endpos == b.pos+readSize {
+		if b.endpos == b.pos+readSize {
 			b.pos += readSize
 
 			return req, ErrBatchEOF

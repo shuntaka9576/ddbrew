@@ -28,7 +28,7 @@ func (t *Table) Init(output *dynamodb.DescribeTableOutput) {
 	}
 
 	t.Mode = func() DDBMode {
-		if output.Table.BillingModeSummary.BillingMode == "PAY_PER_REQUEST" {
+		if output.Table.BillingModeSummary != nil && output.Table.BillingModeSummary.BillingMode == "PAY_PER_REQUEST" {
 			return OnDemand
 		}
 		return Provisioned

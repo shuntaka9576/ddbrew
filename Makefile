@@ -1,8 +1,11 @@
 BIN := ddbrew
-VERSION := $(shell git describe --tags)
-REVISION := $(shell git rev-parse --short HEAD)
+BINPATH := $(GOPATH)/bin
+DISTPATH := ./dist/ddbrew_darwin_amd64_v1/$(BIN)
 
-build:
-	go build -ldflags="-s -w -X github.com/shuntaka9576/$(BIN)/cli.Version=$(VERSION) -X github.com/shuntaka9576/$(BIN)/cli.Revision=$(REVISION)" -o ddbrew ./cmd/$(BIN)
+clean:
+	-rm $(BINPATH)/$(BIN)
+build: clean
+	goreleaser release --snapshot --rm-dist --skip-publish
+	cp $(DISTPATH) $(GOPATH)/bin
 
-.PHONY: build
+.PHONY: build clean

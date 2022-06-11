@@ -1,4 +1,5 @@
 *.jsonl
+!integration/testdata/*.jsonl
 !testdata/*.jsonl
 .docker/
 /ddbrew

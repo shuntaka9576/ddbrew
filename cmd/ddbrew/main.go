@@ -91,6 +91,7 @@ LOOP:
 				}
 
 				cancel()
+				os.Exit(1)
 			}
 
 			break LOOP
@@ -98,4 +99,6 @@ LOOP:
 			break LOOP
 		}
 	}
+
+	os.Exit(0)
 }

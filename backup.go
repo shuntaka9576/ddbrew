@@ -42,7 +42,7 @@ func Backup(ctx context.Context, opt *BackupOption) error {
 
 	f, err := os.Create(filePath)
 	if err != nil {
-		fmt.Printf("create file error %s\n", err)
+		fmt.Fprintf(os.Stderr, "create file error %s\n", err)
 
 		return err
 	}
@@ -81,7 +81,7 @@ func Backup(ctx context.Context, opt *BackupOption) error {
 
 			scanCount += int(scanData.Count)
 			notifyCount += 1
-			fmt.Printf("\rscaned records: %s %d", mark(notifyCount), scanCount)
+			fmt.Fprintf(os.Stderr, "\rscaned records: %s %d", mark(notifyCount), scanCount)
 			if len(scanData.LastEvaluatedKey) == 0 {
 				fmt.Println()
 				doneCh <- struct{}{}
@@ -142,12 +142,12 @@ func Backup(ctx context.Context, opt *BackupOption) error {
 	for {
 		select {
 		case <-doneCh:
-			fmt.Println("backuped")
+			fmt.Fprintf(os.Stderr, "backuped\n")
 
 			return nil
 		case err := <-errCh:
 			if scanCount == 0 {
-				fmt.Printf("scanned record is 0, the file is deleted: %s\n", filepath.Base(f.Name()))
+				fmt.Fprintf(os.Stderr, "scanned record is 0, the file is deleted: %s\n", filepath.Base(f.Name()))
 				os.Remove(filePath)
 			}
 

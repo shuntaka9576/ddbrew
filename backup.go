@@ -48,7 +48,12 @@ func Backup(ctx context.Context, opt *BackupOption) error {
 	}
 	defer f.Close()
 
-	fmt.Fprintf(os.Stderr, "created %s\n", f.Name())
+	displayFileName := f.Name()
+	if fName, err := replacePathTilde(displayFileName); err == nil {
+		displayFileName = fName
+	}
+
+	fmt.Fprintf(os.Stderr, "created %s\n", displayFileName)
 
 	writer := io.MultiWriter(f)
 

@@ -1,25 +1,33 @@
-package integration_test
+package testingutil
 
 import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/pkg/errors"
 )
 
 const (
-	ONDEMAND_TABLE_NAME = "DdbrewPrimaryOnDemand"
-	RECORD_NUM          = 1000
-	TESTDATA_PATH       = "./testdata/1.jsonl"
+	RECORD_NUM    = 1000
+	TESTDATA_PATH = "./testdata/1.jsonl"
+)
+
+var (
+	onDemandTableName = "DdbrewPrimaryOnDemand"
+	pkName            = "pk"
+	skName            = "sk"
 )
 
 type Record struct {
@@ -30,7 +38,92 @@ type Record struct {
 	UpdatedAt int64  `json:"updatedAt"`
 }
 
-func createBackupTestData(tableName string) error {
+type TableOption struct {
+	Mode      types.BillingMode
+	Secondary bool
+}
+
+func CreateTable(opt *TableOption) (tableName string, err error) {
+	client := InitClient(&ClientOption{})
+	keySchema := []types.KeySchemaElement{
+		{
+			AttributeName: &pkName,
+			KeyType:       types.KeyTypeHash,
+		},
+	}
+
+	var input *dynamodb.CreateTableInput
+
+	if opt.Mode == types.BillingModePayPerRequest && !opt.Secondary {
+		tableName = onDemandTableName
+		input = &dynamodb.CreateTableInput{
+			TableName:   &tableName,
+			KeySchema:   keySchema,
+			BillingMode: types.BillingModePayPerRequest,
+			AttributeDefinitions: []types.AttributeDefinition{
+				{AttributeName: &pkName, AttributeType: types.ScalarAttributeTypeS},
+			},
+		}
+	} else {
+		return "", errors.New("create not supported")
+	}
+
+	_, err = client.CreateTable(context.TODO(), input)
+	if err != nil {
+		return "", err
+	}
+
+	for {
+		describe, err := client.DescribeTable(context.TODO(), &dynamodb.DescribeTableInput{TableName: &onDemandTableName})
+		if err != nil {
+			return "", err
+		}
+
+		if describe.Table.TableStatus == types.TableStatusActive {
+			fmt.Printf("\rtable created")
+
+			break
+		} else if describe.Table.TableStatus == types.TableStatusCreating {
+			fmt.Printf("\rtable creating...")
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return onDemandTableName, nil
+}
+
+func DeleteTable() error {
+	client := InitClient(&ClientOption{})
+	input := &dynamodb.DeleteTableInput{
+		TableName: &onDemandTableName,
+	}
+
+	_, err := client.DeleteTable(context.TODO(), input)
+	if err != nil {
+		return err
+	}
+
+	for {
+		describe, err := client.DescribeTable(context.TODO(), &dynamodb.DescribeTableInput{TableName: &onDemandTableName})
+		if err != nil {
+			var rnfe *types.ResourceNotFoundException
+			if errors.As(err, &rnfe) {
+				return nil
+			} else {
+				return err
+			}
+		}
+
+		if describe.Table.TableStatus == types.TableStatusDeleting {
+			fmt.Printf("\rtable deleting...")
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
+func CreateBackupTestData() error {
 	client := InitClient(&ClientOption{})
 
 	f, err := os.Open(TESTDATA_PATH)
@@ -58,7 +151,7 @@ func createBackupTestData(tableName string) error {
 		}
 
 		_, err = client.PutItem(context.TODO(), &dynamodb.PutItemInput{
-			TableName: &tableName,
+			TableName: &onDemandTableName,
 			Item:      av,
 		})
 
@@ -70,7 +163,7 @@ func createBackupTestData(tableName string) error {
 	return nil
 }
 
-func cleanBackupTestData(tableName string) error {
+func CleanBackupTestData() error {
 	client := InitClient(&ClientOption{})
 
 	f, err := os.Open(TESTDATA_PATH)
@@ -101,7 +194,7 @@ func cleanBackupTestData(tableName string) error {
 		keys["pk"] = av["pk"]
 
 		_, err = client.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
-			TableName: &tableName,
+			TableName: &onDemandTableName,
 			Key:       keys,
 		})
 

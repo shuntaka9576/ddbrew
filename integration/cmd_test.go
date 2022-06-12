@@ -9,17 +9,16 @@ import (
 	"os/exec"
 	"regexp"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	util "github.com/shuntaka9576/ddbrew/internal/testingutil"
 )
 
 const (
 	BIN = "ddbrew"
 )
 
-type ConsoleResult struct {
-	stdout   string
-	stderrRe *regexp.Regexp
-	exitCode int
-}
+var tableName string
 
 func init() {
 	fmt.Fprintln(os.Stderr, "# NOTE: Please check README.md before running the integration test")
@@ -32,17 +31,55 @@ func init() {
 	fmt.Fprintf(os.Stderr, "testing %s\n", string(out))
 }
 
+func beforeAll() (err error) {
+	tableName, err = util.CreateTable(&util.TableOption{Mode: types.BillingModePayPerRequest, Secondary: false})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func afterAll() error {
+	err := util.DeleteTable()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func TestMain(m *testing.M) {
+	err := beforeAll()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "beforeAll error: %s\n", err)
+
+		os.Exit(1)
+	}
+
+	defer func() {
+		err := afterAll()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "afterAll error: %s\n", err)
+
+			os.Exit(1)
+		}
+	}()
+
+	m.Run()
+}
+
 func TestCmd_BackupNG_NotAWSAssumeRole(t *testing.T) {
 	ctx := context.Background()
 	env := []string{"HOME=" + os.Getenv("HOME")}
 
-	cmd, _, _ := commandContext(ctx, env, "backup", ONDEMAND_TABLE_NAME)
+	cmd, _, _ := commandContext(ctx, env, "backup", tableName)
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
 	cmd.Wait()
 
-	want := ConsoleResult{
+	want := struct{ exitCode int }{
 		exitCode: 1,
 	}
 
@@ -62,36 +99,37 @@ func TestCmd_BackupOK(t *testing.T) {
 	}
 
 	t.Run("backup success", func(t *testing.T) {
-		err := createBackupTestData(ONDEMAND_TABLE_NAME)
+		err := util.CreateBackupTestData()
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		t.Cleanup(func() {
-			if err = cleanBackupTestData(ONDEMAND_TABLE_NAME); err != nil {
+			if err = util.CleanBackupTestData(); err != nil {
 				t.Fatal(err)
 			}
 		})
 
-		cmd, _, stderr := commandContext(ctx, env, "backup", ONDEMAND_TABLE_NAME)
+		cmd, _, stderr := commandContext(ctx, env, "backup", tableName)
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
 		}
 
 		cmd.Wait()
 
-		stderrRe := regexp.MustCompile(`created ~(.*?)backup_DdbrewPrimaryOnDemand_\d{8}-\d{6}.jsonl\n\rscaned records: 1000backuped\n`)
-
-		want := ConsoleResult{
-			exitCode: 0,
-			stderrRe: stderrRe,
+		want := struct {
+			exitCode     int
+			stderrRegexp *regexp.Regexp
+		}{
+			exitCode:     0,
+			stderrRegexp: regexp.MustCompile(`created ~(.*?)backup_DdbrewPrimaryOnDemand_\d{8}-\d{6}.jsonl\n\rscaned records: 1000backuped\n`),
 		}
 
 		if cmd.ProcessState.ExitCode() != want.exitCode {
 			t.Fatalf("return code %d, want %d", cmd.ProcessState.ExitCode(), want.exitCode)
 		}
 
-		if got := len(want.stderrRe.FindAllString(stderr.String(), -1)); got != 1 {
+		if got := len(want.stderrRegexp.FindAllString(stderr.String(), -1)); got != 1 {
 			t.Fatalf("return code %d, want %d", got, 1)
 		}
 	})

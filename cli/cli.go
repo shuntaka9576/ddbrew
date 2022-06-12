@@ -9,7 +9,7 @@ import (
 var Version string
 var Revision = "HEAD"
 
-var embedVersion = "0.0.5"
+var embedVersion = "0.0.6"
 
 type VersionFlag string
 

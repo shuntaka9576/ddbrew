@@ -16,6 +16,7 @@ type BatchRequest struct {
 	WriteRequests []types.WriteRequest
 	totalWU       int
 	ByteSize      int
+	Retry         int
 }
 
 func (b *BatchRequest) AddWriteRequest(ddbItem DDBItem) error {

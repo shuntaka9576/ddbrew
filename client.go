@@ -3,8 +3,10 @@ package ddbrew
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -72,35 +74,59 @@ func (d *DDBClient) BatchWrite(ctx context.Context, req BatchRequest) (output Ba
 		return output, err
 	}
 
-	if len(res.UnprocessedItems[req.TableName]) > 0 {
-		for _, item := range res.UnprocessedItems[req.TableName] {
-			parsedJl := map[string]interface{}{}
+	unprocessedNum := len(res.UnprocessedItems[req.TableName])
 
-			if item.PutRequest != nil {
-				err = attributevalue.UnmarshalMap(item.PutRequest.Item, &parsedJl)
-				if err != nil {
-					continue
-				}
+	var reTryResult BatchWriteOutput
+	if unprocessedNum > 0 {
+		if req.Retry > 0 {
+			time.Sleep(1 * time.Second)
 
+			retryReq := BatchRequest{
+				TableName:     req.TableName,
+				WriteRequests: res.UnprocessedItems[req.TableName],
+				Retry:         req.Retry - 1,
 			}
 
-			if item.DeleteRequest != nil {
-				err = attributevalue.UnmarshalMap(item.DeleteRequest.Key, &parsedJl)
-				if err != nil {
-					continue
-				}
-			}
-
-			jsonByte, err := json.Marshal(parsedJl)
+			reTryResult, err = d.BatchWrite(ctx, retryReq)
 			if err != nil {
 				return output, err
 			}
+		} else if req.Retry == 0 {
+			for _, item := range res.UnprocessedItems[req.TableName] {
+				parsedJl := map[string]interface{}{}
 
-			output.UnprocessedRecord = append(output.UnprocessedRecord, string(jsonByte))
+				if item.PutRequest != nil {
+					err = attributevalue.UnmarshalMap(item.PutRequest.Item, &parsedJl)
+					if err != nil {
+						continue
+					}
+
+				}
+
+				if item.DeleteRequest != nil {
+					err = attributevalue.UnmarshalMap(item.DeleteRequest.Key, &parsedJl)
+					if err != nil {
+						continue
+					}
+				}
+
+				jsonByte, err := json.Marshal(parsedJl)
+				if err != nil {
+					return output, err
+				}
+
+				output.UnprocessedRecord = append(output.UnprocessedRecord, string(jsonByte))
+				output.SuccessCount = req.Number() - unprocessedNum
+
+				return output, err
+			}
+		} else {
+			return output, errors.New("undefined retry value")
 		}
 	}
 
-	output.SuccessCount = req.Number() - len(output.UnprocessedRecord)
+	output.SuccessCount = req.Number() - unprocessedNum + reTryResult.SuccessCount
+	output.UnprocessedRecord = reTryResult.UnprocessedRecord
 
 	return output, nil
 }

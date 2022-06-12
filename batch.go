@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+const (
+	RETRY_NUMBER = 3
+)
+
 type BatchWriter struct {
 	Table       *Table
 	File        *os.File
@@ -48,6 +52,8 @@ func (b *BatchWriter) BatchWrite(ctx context.Context) error {
 					break LOOP
 				default:
 					batchReq, err := generator.generate(0)
+					batchReq.Retry = RETRY_NUMBER
+
 					if err != nil {
 						if batchReq.Number() == 0 && err == ErrBatchEOF {
 							close(b.Done)

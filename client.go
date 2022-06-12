@@ -116,10 +116,10 @@ func (d *DDBClient) BatchWrite(ctx context.Context, req BatchRequest) (output Ba
 				}
 
 				output.UnprocessedRecord = append(output.UnprocessedRecord, string(jsonByte))
-				output.SuccessCount = req.Number() - unprocessedNum
-
-				return output, err
 			}
+			output.SuccessCount = req.Number() - len(output.UnprocessedRecord)
+
+			return output, err
 		} else {
 			return output, errors.New("undefined retry value")
 		}

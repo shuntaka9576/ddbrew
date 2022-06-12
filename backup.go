@@ -15,12 +15,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-var marks = []string{"|", "/", "-", "\\"}
-
-func mark(i int) string {
-	return marks[i%4]
-}
-
 const LIMIT_SCAN_INTERVAL = 1 * time.Second
 
 type BackupOption struct {
@@ -86,7 +80,7 @@ func Backup(ctx context.Context, opt *BackupOption) error {
 
 			scanCount += int(scanData.Count)
 			notifyCount += 1
-			fmt.Fprintf(os.Stderr, "\rscaned records: %s %d", mark(notifyCount), scanCount)
+			fmt.Fprintf(os.Stderr, "\rscaned records: %d", scanCount)
 			if len(scanData.LastEvaluatedKey) == 0 {
 				fmt.Println()
 				doneCh <- struct{}{}

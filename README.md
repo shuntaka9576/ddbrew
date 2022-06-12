@@ -2,7 +2,7 @@
 
 # ddbrew
 
-Simple DynamoDB utility🍺.
+Simple DynamoDB utility CLI🍺.
 
 ## Installation
 

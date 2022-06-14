@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/pkg/errors"
 	"github.com/shuntaka9576/ddbrew"
+	"github.com/shuntaka9576/ddbrew/cli/timer"
 )
 
 type WriteOption struct {
@@ -84,6 +85,9 @@ func Write(ctx context.Context, opt *WriteOption) error {
 	var unprocessedRecordFile *os.File
 	isUnprocessed := false
 
+	ti := timer.Timer{}
+	ti.Start()
+
 	for {
 		select {
 		case result := <-results:
@@ -114,13 +118,19 @@ func Write(ctx context.Context, opt *WriteOption) error {
 			}
 
 			if isUnprocessed {
-				fmt.Fprintf(os.Stderr, "\rSuccess: %d(%d%%) Unprocessed(%s): %d",
+				fmt.Fprintf(os.Stderr, "\rSuccess: %d(%d%%) Unprocessed(%s): %d Estimated: %s",
 					successNum,
 					progress,
 					unprocessedRecordFile.Name(),
-					unprocessedNum)
+					unprocessedNum,
+					ti.Estimated(lines, successNum),
+				)
 			} else {
-				fmt.Fprintf(os.Stderr, "\rSuccess: %d(%d%%)", successNum, progress)
+				fmt.Fprintf(os.Stderr, "\rSuccess: %d(%d%%) Estimated: %s",
+					successNum,
+					progress,
+					ti.Estimated(lines, successNum),
+				)
 			}
 
 			if result.Error != nil {

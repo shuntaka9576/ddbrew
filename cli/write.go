@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pkg/errors"
 	"github.com/shuntaka9576/ddbrew"
+	"github.com/shuntaka9576/ddbrew/ui"
 )
 
 type WriteOption struct {
@@ -21,6 +23,7 @@ type WriteOption struct {
 }
 
 func Write(ctx context.Context, opt *WriteOption) error {
+
 	f, err := os.Open(opt.FilePath)
 	if err != nil {
 		return err
@@ -80,18 +83,32 @@ func Write(ctx context.Context, opt *WriteOption) error {
 		return err
 	}
 
-	successNum, unprocessedNum := 0, 0
-	var unprocessedRecordFile *os.File
-	isUnprocessed := false
+	finCh := make(chan struct{})
+	p := tea.NewProgram(ui.InitModel(&ui.Option{
+		LineCount:   lines,
+		RemainCount: &remainCount,
+		FinCh:       finCh,
+	}), tea.WithOutput(os.Stderr))
 
+	// FIXME: use error group
+	go func() {
+		if err := p.Start(); err != nil {
+			os.Exit(1)
+		}
+	}()
+
+	isUnprocessed := false
+	var unprocessedRecordFile *os.File
+
+LOOP:
 	for {
 		select {
 		case result := <-results:
 			atomic.AddInt64(&remainCount, -1)
 
-			successNum += result.Content.SuccessCount
-			unprocessedNum += len(result.Content.UnprocessedRecord)
-			progress := int(float64(successNum) / float64(lines) * 100)
+			if result.Error != nil {
+				return result.Error
+			}
 
 			if !isUnprocessed && len(result.Content.UnprocessedRecord) > 0 {
 				isUnprocessed = true
@@ -99,12 +116,22 @@ func Write(ctx context.Context, opt *WriteOption) error {
 				ufile := fmt.Sprintf("unprocessed_record_%s_%s.jsonl",
 					opt.TableName,
 					time.Now().Format("20060102-150405"))
-
 				unprocessedRecordFile, err = os.Create(ufile)
 				if err != nil {
 					return err
 				}
+
 				defer unprocessedRecordFile.Close()
+				p.Send(ui.BatchMsg{
+					SuccessCount:        result.Content.SuccessCount,
+					UnprocessedCount:    len(result.Content.UnprocessedRecord),
+					UnprocessedFileName: unprocessedRecordFile.Name(),
+				})
+			} else {
+				p.Send(ui.BatchMsg{
+					SuccessCount:     result.Content.SuccessCount,
+					UnprocessedCount: len(result.Content.UnprocessedRecord),
+				})
 			}
 
 			if len(result.Content.UnprocessedRecord) > 0 {
@@ -112,24 +139,15 @@ func Write(ctx context.Context, opt *WriteOption) error {
 					unprocessedRecordFile.Write([]byte(record + "\n"))
 				}
 			}
-
-			if isUnprocessed {
-				fmt.Fprintf(os.Stderr, "\rSuccess: %d(%d%%) Unprocessed(%s): %d",
-					successNum,
-					progress,
-					unprocessedRecordFile.Name(),
-					unprocessedNum)
-			} else {
-				fmt.Fprintf(os.Stderr, "\rSuccess: %d(%d%%)", successNum, progress)
-			}
-
-			if result.Error != nil {
-				return result.Error
-			}
 		case <-done:
 			if remainCount == 0 {
-				return nil
+				fmt.Println("break")
+				break LOOP
 			}
 		}
 	}
+
+	<-finCh
+
+	return nil
 }

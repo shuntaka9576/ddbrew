@@ -8,10 +8,6 @@ import (
 	"strings"
 )
 
-const (
-	ITEM_SIZE_LIMIT = 400000 // 400KB
-)
-
 type SimulateOpt struct {
 	Reader io.Reader
 	Mode   DDBMode
@@ -51,7 +47,7 @@ func Simulate(opt *SimulateOpt) (*SimulateResult, error) {
 			return nil, err
 		}
 
-		if itemResult.Size > ITEM_SIZE_LIMIT {
+		if itemResult.Size > WRITE_LIMIT_BYTE_SIZE {
 			return nil, err
 		}
 

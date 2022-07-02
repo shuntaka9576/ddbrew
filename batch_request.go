@@ -7,10 +7,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-const (
-	ITEM_LIMIT_SIZE = 4000
-)
-
 type BatchRequest struct {
 	TableName     string
 	WriteRequests []types.WriteRequest
@@ -20,7 +16,7 @@ type BatchRequest struct {
 }
 
 func (b *BatchRequest) AddWriteRequest(ddbItem DDBItem) error {
-	if ddbItem.ByteSize >= ITEM_LIMIT_SIZE {
+	if ddbItem.ByteSize >= WRITE_LIMIT_BYTE_SIZE {
 		return errors.New("byte size over")
 	}
 

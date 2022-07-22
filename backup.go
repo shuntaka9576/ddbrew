@@ -75,7 +75,7 @@ func Backup(ctx context.Context, opt *BackupOption) error {
 					continue
 				}
 
-				fmt.Fprintf(writer, string(jsonByte)+"\n")
+				fmt.Fprintf(writer, "%s", string(jsonByte)+"\n")
 			}
 
 			scanCount += int(scanData.Count)
